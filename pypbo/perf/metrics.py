@@ -286,7 +286,7 @@ def omega_empirical(returns, target_rtn=0, log=True, plot=False, steps=1000):
 
 def sortino(returns, target_rtn=0, factor=1, log=True):
     """
-    Sortino I.I.D ratio caluclated using Lower Partial Moment.
+    Sortino I.I.D ratio calculated using Lower Partial Moment.
     Result should be the same as `sortino_iid`.
     """
     # validate_return_type(return_type)
@@ -434,7 +434,7 @@ def sharpe_iid_rolling(
 
 def sharpe_iid_adjusted(rtns, bench=0, factor=1, log=True):
     """
-    Adjusted Sharpe Ratio, acount for skew and kurtosis in return series.
+    Adjusted Sharpe Ratio, account for skew and kurtosis in return series.
 
     Pezier and White (2006) adjusted sharpe ratio.
 
@@ -473,7 +473,7 @@ def sharpe_iid_adjusted(rtns, bench=0, factor=1, log=True):
 
 def adjusted_sharpe(sr, skew, excess_kurtosis):
     """
-    Adjusted Sharpe Ratio, acount for skew and kurtosis in return series.
+    Adjusted Sharpe Ratio, account for skew and kurtosis in return series.
 
     Pezier and White (2006) adjusted sharpe ratio.
 
@@ -518,7 +518,7 @@ def sharpe_non_iid(rtns, bench=0, q=trading_days, p_critical=0.05, log=True):
     Returns:
         TYPE
     """
-    if type(q) is not np.int64 or type(q) is not np.int32:
+    if type(q) is not np.int64 and type(q) is not np.int32:
         q = np.round(q, 0).astype(np.int64)
 
     if len(rtns) <= q:
@@ -539,12 +539,32 @@ def sharpe_non_iid(rtns, bench=0, q=trading_days, p_critical=0.05, log=True):
     sr = sharpe_iid(rtns, bench=bench, factor=1, log=log)
 
     if not _is_pandas(rtns):
-        adj_factor, pval = sharpe_autocorr_factor(rtns, q=q)
-        if pval < p_critical:
-            # reject Ljung-Box Null, there is serial correlation
-            return sr * adj_factor
+        rtns = np.asarray(rtns)
+        if rtns.ndim < 2:
+            # 1-D series
+            series = rtns[~np.isnan(rtns)]
+            adj_factor, pval = sharpe_autocorr_factor(series, q=q)
+            if pval < p_critical:
+                # reject Ljung-Box Null, there is serial correlation
+                return sr * adj_factor
+            else:
+                return sr * np.sqrt(q)
         else:
-            return sr * np.sqrt(q)
+            # 2-D array: one strategy config per column. acf / Ljung-Box is a
+            # 1-D routine, so test each column separately (mirrors the
+            # DataFrame branch below).
+            tests = []
+            for col in range(rtns.shape[1]):
+                series = rtns[:, col]
+                series = series[~np.isnan(series)]
+                tests.append(sharpe_autocorr_factor(series, q=q))
+            factors = np.array(
+                [
+                    adj_factor if pval < p_critical else np.sqrt(q)
+                    for adj_factor, pval in tests
+                ]
+            )
+            return sr * factors
     else:
         if isinstance(rtns, pd.Series):
             tests = [sharpe_autocorr_factor(rtns.dropna().values, q=q)]
@@ -577,19 +597,19 @@ def sharpe_autocorr_factor(returns, q):
 
     Parameters:
         returns :
-            return sereis
+            return series
         q :
             time aggregation factor, e.g. 12 for monthly to annual,
             252 for daily to annual
 
     Returns:
         factor : time aggregation factor
-        p-value : p-value for Ljung-Box serial correation test.
+        p-value : p-value for Ljung-Box serial correlation test.
     """
     # Ljung-Box Null: data is independent, i.e. no auto-correlation.
     # smaller p-value would reject the Null, i.e. there is auto-correlation
     acf, _, pval = sts.acf(returns, adjusted=False, nlags=q, qstat=True)
-    term = [(q - (k + 1)) * acf[k + 1] for k in range(q - 2)]
+    term = [(q - (k + 1)) * acf[k + 1] for k in range(q - 1)]
     factor = q / np.sqrt(q + 2 * np.sum(term))
 
     return factor, pval[-2]
@@ -646,7 +666,7 @@ def annualized_log_return(total_return, days, ann_factor=trading_days):
         ann_factor :
             number of days in a year
     Returns:
-        Annualized percentage return.
+        Annualized log return.
     """
 
     years = days / ann_factor
@@ -711,7 +731,7 @@ def drawdown(equity) -> pd.DataFrame:
 
 def drawdown_from_rtns(returns, log=True):
     """
-    Drowdown curve from returns.
+    Drawdown curve from returns.
 
     Args:
         returns (array like):
@@ -742,9 +762,6 @@ def calmar_ratio(returns, factor=trading_days, log=True):
     Returns:
         Calmar ratio, calculated with normal percentage returns.
     """
-    if not log:
-        returns = pct_to_log_return(returns)
-
     num_years = float(len(returns)) / factor
 
     if not log:
