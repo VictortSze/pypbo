@@ -82,12 +82,6 @@ def test_sharpe_iid():
 
     assert(np.isclose(sharpe, .834364))
 
-    sharpe = perf.sharpe_iid(data, bench=.05, factor=1, log=False)
-
-    assert(np.isclose(sharpe, .834364))
-    # below is for computing sharpe ratio with pct returns
-    # assert(np.isclose(sharpe, 0.8189144744629443))
-
     # turn data to pandas.Series
     data = pd.Series(data)
 
@@ -99,11 +93,43 @@ def test_sharpe_iid():
 
     assert(np.isclose(sharpe, .834364 * np.sqrt(252)))
 
+
+def test_sharpe_iid_pct():
+    '''
+    log=False: pct returns are converted to log returns before computing
+    the Sharpe ratio, so the result differs slightly from the log=True
+    value of the same data (.834364).
+    '''
+    expected = 0.82009993
+
+    data = np.array([0.259,
+                     .198,
+                     .364,
+                     -.081,
+                     .057,
+                     .055,
+                     .188,
+                     .317,
+                     .24,
+                     .184,
+                     -.01,
+                     .526])
+
+    # numpy array
     sharpe = perf.sharpe_iid(data, bench=.05, factor=1, log=False)
 
-    assert(np.isclose(sharpe, .834364))
-    # below is for computing sharpe ratio with pct returns
-    # assert(np.isclose(sharpe, 0.8189144744629443))
+    assert(np.isclose(sharpe, expected))
+
+    # turn data to pandas.Series
+    data = pd.Series(data)
+
+    sharpe = perf.sharpe_iid(data, bench=.05, factor=1, log=False)
+
+    assert(np.isclose(sharpe, expected))
+
+    sharpe = perf.sharpe_iid(data, bench=.05, factor=252, log=False)
+
+    assert(np.isclose(sharpe, expected * np.sqrt(252)))
 
 
 def test_sortino_iid():
