@@ -1,7 +1,7 @@
 # pypbo
 Probability of Backtest Overfitting in Python
 
-Python implmenetation of Probability of Backtest Overfitting. [1]
+Python implementation of Probability of Backtest Overfitting. [1]
 
 ## Features:
 
@@ -17,7 +17,7 @@ Python implmenetation of Probability of Backtest Overfitting. [1]
 ## TODO:
 
 * Add test cases.
-* Optimial N trials [4]
+* Optimal N trials [4]
 * Harvey and Liu 2014 paper on sharpe ratio threshold. [5]
 
 

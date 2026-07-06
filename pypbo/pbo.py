@@ -102,13 +102,13 @@ def pbo(
     M:
         returns data, numpy or dataframe format.
     S:
-        chuncks to devided M into, must be even number. Paper suggests setting
+        chunks to divide M into, must be an even number. Paper suggests setting
         S = 16. See paper for details of choice of S.
     metric_func:
         evaluation function for returns data
     threshold:
         used as prob. of OOS Loss calculation cutoff. For Sharpe ratio,
-        this should be 0 to indicate probabilty of loss.
+        this should be 0 to indicate probability of loss.
     n_jobs:
         if greater than 1 then enable parallel mode
     hist:
@@ -129,7 +129,7 @@ def pbo(
         n_jobs = max(1, ps.cpu_count(logical=False))
 
     if isinstance(M, pd.DataFrame):
-        # conver to numpy values
+        # convert to numpy values
         if verbose:
             print("Convert from DataFrame to numpy array.")
         M = M.values
@@ -146,7 +146,7 @@ def pbo(
     sub_T = T // S
 
     if verbose:
-        print("Total sample size: {:,d}, chunck size: {:,d}".format(T, sub_T))
+        print("Total sample size: {:,d}, chunk size: {:,d}".format(T, sub_T))
 
     # generate subsets, each of length sub_T
     Ms = []
@@ -158,7 +158,7 @@ def pbo(
     Ms_values = np.array(Ms_values)
 
     if verbose:
-        print("No. of Chuncks: {:,d}".format(len(Ms)))
+        print("No. of Chunks: {:,d}".format(len(Ms)))
 
     # generate combinations
     Cs = [x for x in itr.combinations(Ms, S // 2)]
@@ -174,7 +174,7 @@ def pbo(
         J_bar = []
 
         for i in range(len(Cs)):
-            # make sure chucks are concatenated in their original order
+            # make sure chunks are concatenated in their original order
             order = [x for x, _ in Cs[i]]
             sort_ind = np.argsort(order)
 
@@ -304,7 +304,7 @@ def pbo(
 
 
 def pbo_core_calc(Cs, Ms, Ms_values, Ms_index, metric_func, verbose=False):
-    # make sure chucks are concatenated in their original order
+    # make sure chunks are concatenated in their original order
     order = [x for x, _ in Cs]
     sort_ind = np.argsort(order)
 
@@ -580,7 +580,7 @@ def minTRL(sharpe, skew, kurtosis, target_sharpe=0, prob=0.95):
 
 def expected_max(N):
     """
-    Expected maximum of IID random variance X_n ~ Z, n = 1,...,N,
+    Expected maximum of IID random variables X_n ~ Z, n = 1,...,N,
     where Z is the CDF of the standard Normal distribution,
     E[MAX_n] = E[max{x_n}]. Computed for a large N.
 
@@ -598,7 +598,7 @@ def minBTL(N, sharpe_IS):
     non-sufficient condition to avoid overfitting. See PBO for a more precise
     measure of backtest overfitting.
 
-    Paramters:
+    Parameters:
         N :
             number of backtest configurations
         sharpe_IS :
