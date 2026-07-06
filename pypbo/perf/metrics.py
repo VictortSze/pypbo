@@ -142,14 +142,14 @@ def log_returns(prices, n=1, fillna=False):
     # the ffilled cells will be reset back to nan using the mask saved above.
     prices = prices.ffill()
     rtns = np.log(prices) - np.log(prices.shift(n))
-    rtns.values[mask.values] = np.nan
+    rtns[mask] = np.nan
     # print(rtns)
 
     if fillna:
         # rtns.fillna(0, inplace=True)
         # only fill first period nan
         if _is_pandas(rtns):
-            rtns.values[0] = 0.0
+            rtns.iloc[0] = 0.0
         else:
             rtns[0] = 0.0
     return rtns
@@ -230,7 +230,7 @@ def kappa(returns, target_rtn, moment, log=True):
     if _is_pandas(excess):
         mean = excess.mean()
     else:
-        mean = np.nanmean(excess)
+        mean = np.nanmean(excess, axis=0)
 
     kappa = mean / np.power(
         LPM(returns, target_rtn, moment=moment), 1.0 / moment
@@ -307,7 +307,7 @@ def sortino(returns, target_rtn=0, factor=1, log=True):
     else:
         # return np.nanmean(returns - target_rtn) / \
         return (
-            np.nanmean(excess)
+            np.nanmean(excess, axis=0)
             / np.sqrt(LPM(returns, target_rtn, 2))
             * np.sqrt(factor)
         )
@@ -487,8 +487,9 @@ def adjusted_sharpe(sr, skew, excess_kurtosis):
         excess_kurtosis :
             return series excess kurtosis
     """
-    # return sr * (1 + (skew / 6.0) * sr + (kurtosis - 3) / 24.0 * sr**2)
-    return sr * (1 + (skew / 6.0) * sr + excess_kurtosis / 24.0 * sr ** 2)
+    # ASR = SR * [1 + (S / 6) * SR - ((K - 3) / 24) * SR^2]
+    # excess kurtosis is a penalty, hence the minus sign.
+    return sr * (1 + (skew / 6.0) * sr - excess_kurtosis / 24.0 * sr ** 2)
 
 
 def sharpe_non_iid(rtns, bench=0, q=trading_days, p_critical=0.05, log=True):
@@ -632,7 +633,7 @@ def annual_geometric_returns(rtns, ann_factor=trading_days, log=True):
     """
     if not log:
         rtns = pct_to_log_return(rtns)
-    total_rtn = np.exp(rtns.sum())
+    total_rtn = np.exp(rtns.sum(axis=0))
     geo = np.power(total_rtn, ann_factor / len(rtns)) - 1
     return geo
 
@@ -698,9 +699,9 @@ def tail_ratio(returns, tail_prob=5):
         bottom = returns.quantile(q=tail_prob)
         return np.abs(top / bottom)
     else:
-        return np.abs(np.nanpercentile(returns, 100 - tail_prob)) / np.abs(
-            np.nanpercentile(returns, tail_prob)
-        )
+        return np.abs(
+            np.nanpercentile(returns, 100 - tail_prob, axis=0)
+        ) / np.abs(np.nanpercentile(returns, tail_prob, axis=0))
 
 
 def max_drawdown(equity):
