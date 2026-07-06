@@ -159,11 +159,13 @@ def pct_to_log_return(pct_returns, fillna=True):
     if _is_pandas(pct_returns):
         if fillna:
             pct_returns = pct_returns.fillna(0)
-        return np.log(1 + pct_returns + 1e-8)
     else:
         if fillna:
             pct_returns = np.nan_to_num(pct_returns)
-        return np.log(1 + pct_returns + 1e-8)
+    # log1p avoids the small bias of log(1 + r + eps). The floor only
+    # guards impossible values (r <= -100%, total loss) against -inf;
+    # normal data is untouched. np.maximum preserves NaN.
+    return np.log1p(np.maximum(pct_returns, -1 + 1e-9))
 
 
 def log_to_pct_return(log_returns):
@@ -324,9 +326,10 @@ def sortino_iid(rtns, bench=0, factor=1, log=True):
     else:
         excess = pct_to_log_excess(rtns, bench)
 
+    # positive days contribute 0 to LPM2, but genuine NaNs are excluded
+    # from the count so the denominator matches excess.mean() below.
     neg_rtns = excess.where(cond=lambda x: x < 0)
-    neg_rtns.fillna(0, inplace=True)
-    semi_std = np.sqrt(neg_rtns.pow(2).mean())
+    semi_std = np.sqrt(neg_rtns.pow(2).sum() / excess.count())
 
     # print(excess, semi_std, np.std(neg_rtns, ddof=0))
 
@@ -460,13 +463,20 @@ def sharpe_iid_adjusted(rtns, bench=0, factor=1, log=True):
     sr = sharpe_iid(rtns, bench=bench, factor=1, log=log)
     # print(sr)
 
-    if _is_pandas(rtns):
-        skew = rtns.skew()
-        excess_kurt = rtns.kurtosis()
+    # Pezier and White define ASR on the excess return distribution, so
+    # compute the moments on the same excess series used by sharpe_iid.
+    if log:
+        excess = log_excess(rtns, bench)
     else:
-        skew = ss.skew(rtns, bias=False, nan_policy="omit")
+        excess = pct_to_log_excess(rtns, bench)
+
+    if _is_pandas(excess):
+        skew = excess.skew()
+        excess_kurt = excess.kurtosis()
+    else:
+        skew = ss.skew(excess, bias=False, nan_policy="omit")
         excess_kurt = ss.kurtosis(
-            rtns, bias=False, fisher=True, nan_policy="omit"
+            excess, bias=False, fisher=True, nan_policy="omit"
         )
     return adjusted_sharpe(sr, skew, excess_kurt) * np.sqrt(factor)
 
@@ -533,9 +543,8 @@ def sharpe_non_iid(rtns, bench=0, q=trading_days, p_critical=0.05, log=True):
         if len(dim) < 2:
             return np.nan
         else:
-            res = np.empty((1, dim[1]))
-            res[:] = np.nan
-            return res
+            # match the (N,) shape of the normal multi-column path
+            return np.full(dim[1], np.nan)
 
     sr = sharpe_iid(rtns, bench=bench, factor=1, log=log)
 

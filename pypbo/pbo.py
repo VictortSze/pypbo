@@ -12,6 +12,7 @@ import collections as cls
 import pandas as pd
 import joblib as job
 import psutil as ps
+import warnings
 
 import pypbo.perf as perf
 
@@ -270,12 +271,12 @@ def pbo(
     non_optimized = R_bar_cdf(y)
 
     dom_df = pd.DataFrame(
-        dict(optimized_IS=optimized, non_optimized_OOS=non_optimized)
+        dict(optimized_OOS=optimized, non_optimized_OOS=non_optimized)
     )
     dom_df.index = y
     # visually, non_optimized curve above optimized curve indicates good
     # backtest with low overfitting.
-    dom_df["SD2"] = dom_df.non_optimized_OOS - dom_df.optimized_IS
+    dom_df["SD2"] = dom_df.non_optimized_OOS - dom_df.optimized_OOS
 
     result = PBO(
         pbo_test,
@@ -458,9 +459,9 @@ def psr(sharpe, T, skew, kurtosis, target_sharpe=0):
         T:
             no. of observations, should match return / sharpe sampling period.
         skew:
-            sharpe ratio skew
+            return series skew
         kurtosis:
-            sharpe ratio kurtosis
+            return series kurtosis
         target_sharpe:
             target sharpe ratio
 
@@ -468,11 +469,15 @@ def psr(sharpe, T, skew, kurtosis, target_sharpe=0):
         Cumulative probabilities for observed sharpe ratios under standard
         Normal distribution.
     """
-    value = (
-        (sharpe - target_sharpe)
-        * np.sqrt(T - 1)
-        / np.sqrt(1.0 - skew * sharpe + sharpe ** 2 * (kurtosis - 1) / 4.0)
-    )
+    radicand = 1.0 - skew * sharpe + sharpe ** 2 * (kurtosis - 1) / 4.0
+    if np.any(radicand <= 0):
+        warnings.warn(
+            "PSR: sharpe / skew / kurtosis combination gives a non-positive "
+            "Sharpe ratio variance estimate (radicand <= 0). NaN returned "
+            "for those entries."
+        )
+    with np.errstate(invalid="ignore"):
+        value = (sharpe - target_sharpe) * np.sqrt(T - 1) / np.sqrt(radicand)
     # print(value)
     psr = ss.norm.cdf(value, 0, 1)
     return psr
@@ -559,9 +564,9 @@ def minTRL(sharpe, skew, kurtosis, target_sharpe=0, prob=0.95):
         sharpe :
             observed sharpe ratio, in same frequency as observations.
         skew :
-            sharpe ratio skew
+            return series skew
         kurtosis :
-            sharpe ratio kurtosis
+            return series kurtosis
         target_sharpe :
             target sharpe ratio
         prob :
@@ -570,9 +575,16 @@ def minTRL(sharpe, skew, kurtosis, target_sharpe=0, prob=0.95):
     Returns:
         minTRL, in terms of number of observations.
     """
+    radicand = 1.0 - skew * sharpe + sharpe ** 2 * (kurtosis - 1) / 4.0
+    if np.any(radicand <= 0):
+        warnings.warn(
+            "MinTRL: sharpe / skew / kurtosis combination gives a "
+            "non-positive Sharpe ratio variance estimate (radicand <= 0). "
+            "Result is not meaningful."
+        )
     min_track = (
         1
-        + (1 - skew * sharpe + sharpe ** 2 * (kurtosis - 1) / 4.0)
+        + radicand
         * (ss.norm.ppf(prob) / (sharpe - target_sharpe)) ** 2
     )
     return min_track
